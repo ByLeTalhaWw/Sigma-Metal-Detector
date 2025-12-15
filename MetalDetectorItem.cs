@@ -3,7 +3,7 @@ using Exiled.API.Features.Attributes;
 using Exiled.API.Features.Spawn;
 using Exiled.CustomItems.API.Features;
 using Exiled.Events.EventArgs.Player;
-using Exiled.API.Features.Items; // Fix for Item
+using Exiled.API.Features.Items;
 using MEC;
 using PlayerRoles;
 using System.Collections.Generic;
@@ -21,15 +21,6 @@ namespace MetalDetector
         public override string Description { get; set; } = "Scans players for items.";
         public override float Weight { get; set; } = 1f;
 
-        [Description("The maximum distance to scan.")]
-        public float MaxDistance { get; set; } = 5f;
-
-        [Description("Time in seconds to wait before showing results.")]
-        public float ScanDuration { get; set; } = 3f;
-
-        [Description("Total cooldown before using again.")]
-        public float Cooldown { get; set; } = 5f;
-
         public override SpawnProperties SpawnProperties { get; set; } = new SpawnProperties
         {
             Limit = 1,
@@ -46,7 +37,7 @@ namespace MetalDetector
         public override float Damage { get; set; } = 0;
         public override byte ClipSize { get; set; } = 12;
 
-        private Dictionary<int, float> _cooldowns = new Dictionary<int, float>(); // Changed ushort to int for Id
+        private Dictionary<int, float> _cooldowns = new Dictionary<int, float>();
         private readonly int _mask = LayerMask.GetMask("Default", "Player", "Hitbox");
 
         protected override void SubscribeEvents()
@@ -65,7 +56,7 @@ namespace MetalDetector
         {
             ev.IsAllowed = false;
 
-            if (_cooldowns.TryGetValue(ev.Player.Id, out float nextUseTime) && Time.time < nextUseTime) // Serial -> Id
+            if (_cooldowns.TryGetValue(ev.Player.Id, out float nextUseTime) && Time.time < nextUseTime)
             {
                 ev.Player.ShowHint(Plugin.Instance.Translation.CooldownMessage, 2f);
                 return;
@@ -73,13 +64,15 @@ namespace MetalDetector
 
             Vector3 startPos = ev.Player.CameraTransform.position + (ev.Player.CameraTransform.forward * 0.1f);
 
-            if (Physics.Raycast(startPos, ev.Player.CameraTransform.forward, out RaycastHit hit, MaxDistance, _mask))
+            // Use Config.MaxDistance
+            if (Physics.Raycast(startPos, ev.Player.CameraTransform.forward, out RaycastHit hit, Plugin.Instance.Config.MaxDistance, _mask))
             {
                 Player target = Player.Get(hit.collider);
 
                 if (target != null && target != ev.Player && !target.IsScp)
                 {
-                    _cooldowns[ev.Player.Id] = Time.time + Cooldown; // Serial -> Id
+                    // Use Config.Cooldown
+                    _cooldowns[ev.Player.Id] = Time.time + Plugin.Instance.Config.Cooldown;
                     Timing.RunCoroutine(ScanRoutine(ev.Player, target));
                 }
                 else
@@ -98,7 +91,8 @@ namespace MetalDetector
             scanner.ShowHint(Plugin.Instance.Translation.ScanStarted.Replace("%player%", target.Nickname), 2f);
             target.Broadcast(3, Plugin.Instance.Translation.TargetScanned);
 
-            yield return Timing.WaitForSeconds(ScanDuration);
+            // Use Config.ScanDuration
+            yield return Timing.WaitForSeconds(Plugin.Instance.Config.ScanDuration);
 
             if (scanner == null || target == null || !scanner.IsConnected || !target.IsConnected)
                 yield break;
@@ -123,7 +117,7 @@ namespace MetalDetector
 
         private void OnLeft(LeftEventArgs ev)
         {
-            if (_cooldowns.ContainsKey(ev.Player.Id)) // Serial -> Id
+            if (_cooldowns.ContainsKey(ev.Player.Id))
                 _cooldowns.Remove(ev.Player.Id);
         }
     }
